@@ -6,12 +6,11 @@ const Context = require('./context')
 
 class ScopeManager {
   constructor () {
-    const id = -1
-    const context = new Context(id)
+    const context = new Context()
 
     this._active = context
-    this._set = []
-    this._context = new Map([[ id, context ]])
+    this._stack = []
+    this._links = new Map()
 
     this._hook = asyncHooks.createHook({
       init: this._init.bind(this),
@@ -49,34 +48,34 @@ class ScopeManager {
   }
 
   _init (asyncId) {
-    const parent = this._active
-    const context = new Context(asyncId)
-
-    context.link(parent)
-
-    this._context.set(asyncId, context)
+    this._links.set(asyncId, this._active)
+    this._active.retain()
   }
 
   _before (asyncId) {
-    const context = this._context.get(asyncId)
+    const parent = this._links.get(asyncId)
 
-    this._enter(context)
+    if (parent) {
+      const context = new Context()
+
+      context.link(parent)
+
+      this._enter(context)
+    }
   }
 
   _after (asyncId) {
-    const context = this._context.get(asyncId)
-
-    this._exit(context)
+    if (this._links.has(asyncId)) {
+      this._exit(this._active)
+    }
   }
 
   _destroy (asyncId) {
-    const context = this._context.get(asyncId)
+    const parent = this._links.get(asyncId)
 
-    if (context) {
-      context.destroyed = true
-      context.remove()
-
-      this._context.delete(context.id)
+    if (parent) {
+      this._links.delete(asyncId)
+      parent.release()
     }
   }
 
@@ -85,20 +84,14 @@ class ScopeManager {
   }
 
   _enter (context) {
-    if (context) {
-      this._set.push(this._active)
-      this._active = context
-    }
+    this._stack.push(this._active)
+    this._active = context
   }
 
   _exit (context) {
-    if (this._active === context) {
-      if (this._set.length) {
-        this._active = this._set.pop()
-      }
+    this._active = this._stack.pop()
 
-      context.close()
-    }
+    context.destroy()
   }
 
   _enable () {
