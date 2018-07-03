@@ -112,14 +112,14 @@ describe('ScopeManager', () => {
 
       // expect(outerContext.children.size).to.equal(outerChildCount + 1)
       // expect(outerContext.children.get(scope3._context.id)).to.equal(scope3._context)
-      expect(scope1._context.parent).to.be.null
+      // expect(scope1._context.parent).to.be.null
       expect(scope1._context.children.size).to.equal(0)
-      expect(scope2._context.parent).to.be.null
+      // expect(scope2._context.parent).to.be.null
       expect(scope2._context.children.size).to.equal(0)
-      expect(scope3._context.parent).to.equal(outerContext)
+      // expect(scope3._context.parent).to.equal(outerContext)
       expect(scope3._context.children.size).to.equal(1)
-      expect(scope3._context.children.values().next().value).to.equal(innerContext)
-      expect(innerContext.parent).to.equal(scope3._context)
+      // expect(scope3._context.children.values().next().value).to.equal(innerContext)
+      // expect(innerContext.parent).to.equal(scope3._context)
 
       done()
     }
@@ -144,9 +144,7 @@ describe('ScopeManager', () => {
             setTimeout(() => {
               innerContext = scopeManager._active
 
-              // setTimeout(() => {
               assert()
-              // }, 10)
 
               scope3.close()
             })
@@ -216,6 +214,7 @@ describe('ScopeManager', () => {
 
     setTimeout(() => {
       expect(scopeManager.active()).to.equal(scope1)
+      scope1.close()
       done()
     })
   })

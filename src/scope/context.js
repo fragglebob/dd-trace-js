@@ -22,10 +22,9 @@ class Context {
     require('fs').writeSync(1, `release: ${this._id} (${this.count})\n`)
     this.count--
 
-    // if (this.count === 0) {
-    //   // this.parent.release()
-    //   this.unlink()
-    // }
+    if (this.count === 0) {
+      this.unlink()
+    }
   }
 
   exit (scope) {
@@ -87,10 +86,8 @@ class Context {
   }
 
   bypass () {
-    if (this.destroyed && this.count === 0) {
+    if (this.destroyed) {
       this.children.forEach(child => this.detach(child))
-      this.unlink()
-      // this.parent.detach(this)
     }
   }
 }
