@@ -6,11 +6,13 @@ const Context = require('./context')
 
 class ScopeManager {
   constructor () {
+    const id = -1
     const context = new Context()
 
     this._active = context
     this._stack = []
     this._links = new Map()
+    this._contexts = new Map([[ id, context ]])
 
     this._hook = asyncHooks.createHook({
       init: this._init.bind(this),
@@ -41,8 +43,7 @@ class ScopeManager {
     const context = this._active
     const scope = new Scope(span, context, finishSpanOnClose)
 
-    context.set.push(scope)
-    context.active = scope
+    context.add(scope)
 
     return scope
   }
@@ -60,13 +61,20 @@ class ScopeManager {
 
       context.link(parent)
 
-      this._enter(context)
+      this._stack.push(this._active)
+      this._contexts.set(asyncId, context)
+      this._active = context
     }
   }
 
   _after (asyncId) {
-    if (this._links.has(asyncId)) {
-      this._exit(this._active)
+    const context = this._contexts.get(asyncId)
+
+    if (context) {
+      context.exit()
+
+      this._active = this._stack.pop()
+      this._contexts.delete(asyncId)
     }
   }
 
@@ -81,17 +89,6 @@ class ScopeManager {
 
   _promiseResolve (asyncId) {
     this._destroy(asyncId)
-  }
-
-  _enter (context) {
-    this._stack.push(this._active)
-    this._active = context
-  }
-
-  _exit (context) {
-    this._active = this._stack.pop()
-
-    context.destroy()
   }
 
   _enable () {

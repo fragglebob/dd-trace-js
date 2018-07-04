@@ -6,9 +6,37 @@ const fs = require('fs')
 describe('ScopeManager', () => {
   let ScopeManager
   let scopeManager
+  let asyncHooks
 
   beforeEach(() => {
-    ScopeManager = require('../../src/scope/scope_manager')
+    asyncHooks = {
+      createHook (hooks) {
+        Object.keys(hooks).forEach(key => {
+          this[key] = hooks[key]
+        })
+
+        return {
+          enable: sinon.stub(),
+          disable: sinon.stub()
+        }
+      }
+    }
+
+    // context = {
+    //   active: null,
+    //   parent: null,
+    //   add: sinon.stub(),
+    //   link: sinon.stub(),
+    //   exit: sinon.stub()
+    // }
+
+    // Context = sinon.stub().returns(context)
+
+    ScopeManager = proxyquire('../src/scope/scope_manager', {
+      './async_hooks': asyncHooks
+      // './context': Context
+    })
+
     scopeManager = new ScopeManager()
   })
 
@@ -16,11 +44,14 @@ describe('ScopeManager', () => {
     scopeManager._disable()
   })
 
+  it('should enable its hooks')
+
   it('should support activating a span', () => {
     const span = {}
 
     scopeManager.activate(span)
 
+    expect(scopeManager.active()).to.not.be.undefined
     expect(scopeManager.active()).to.be.instanceof(Scope)
     expect(scopeManager.active().span()).to.equal(span)
   })
@@ -38,6 +69,9 @@ describe('ScopeManager', () => {
     const span1 = {}
     const span2 = {}
     const scope1 = scopeManager.activate(span1)
+
+    expect(scopeManager.active()).to.equal(scope1)
+
     const scope2 = scopeManager.activate(span2)
 
     expect(scopeManager.active()).to.equal(scope2)
@@ -60,182 +94,228 @@ describe('ScopeManager', () => {
     expect(span.finish).to.have.been.called
   })
 
-  it('should automatically close pending scopes when the context exits', done => {
-    const span1 = {}
-    const span2 = {}
-
-    let scope1
-    let scope2
-
-    setTimeout(() => {
-      scope1 = scopeManager.activate(span1)
-      scope2 = scopeManager.activate(span2)
-
-      sinon.spy(scope1, 'close')
-      sinon.spy(scope2, 'close')
-    })
-
-    setTimeout(() => {
-      expect(scope1.close).to.have.been.called
-      expect(scope2.close).to.have.been.called
-      done()
-    })
-  })
-
-  // it('should wait for garbage collection before removing the context', done => {
-  //   const timer = setInterval(() => {
-  //     if (count === 2)
-  //   }, 1)
-  // })
-
-  // it('should support reentering contexts', () => {
+  // it('should exit the context in the after hook', () => {
 
   // })
 
-  it('should prevent memory leaks in recursive timers', done => {
-    const outerContext = scopeManager._active
-    const outerChildCount = outerContext.children.size
-
-    let innerContext
-    let scope1
-    let scope2
-    let scope3
-
-    function assert () {
-      // fs.writeSync(1, `scope1: ${scope1._context.id}\n`)
-      // fs.writeSync(1, `scope2: ${scope2._context.id}\n`)
-      // fs.writeSync(1, `scope3: ${scope3._context.id}\n`)
-      // fs.writeSync(1, `innerContext: ${innerContext.id}\n`)
-      // fs.writeSync(1, `innerContext.parent: ${innerContext.parent.id}\n`)
-      // fs.writeSync(1, `outlier: ${Array.from(outerContext.children.values())[2].id}\n`)
-      // fs.writeSync(1, `outlier.parent: ${Array.from(outerContext.children.values())[2].parent.id}\n`)
-
-      // expect(outerContext.children.size).to.equal(outerChildCount + 1)
-      // expect(outerContext.children.get(scope3._context.id)).to.equal(scope3._context)
-      // expect(scope1._context.parent).to.be.null
-      expect(scope1._context.children.size).to.equal(0)
-      // expect(scope2._context.parent).to.be.null
-      expect(scope2._context.children.size).to.equal(0)
-      // expect(scope3._context.parent).to.equal(outerContext)
-      expect(scope3._context.children.size).to.equal(1)
-      // expect(scope3._context.children.values().next().value).to.equal(innerContext)
-      // expect(innerContext.parent).to.equal(scope3._context)
-
-      done()
-    }
-
-    setTimeout(() => {
-      scope1 = scopeManager.activate({})
-
-      setTimeout(() => {
-        scope2 = scopeManager.activate({})
-
-        setTimeout(() => {
-          fs.writeSync(1, `scope1: ${scope1._context.parent}\n`)
-          fs.writeSync(1, `scope1: ${scope1._context.count}\n`)
-          scope1.close()
-          fs.writeSync(1, `scope1: ${scope1._context.parent}\n`)
-
-          scope3 = scopeManager.activate({})
-
-          setTimeout(() => {
-            scope2.close()
-
-            setTimeout(() => {
-              innerContext = scopeManager._active
-
-              assert()
-
-              scope3.close()
-            })
-          })
-        })
-      })
-    })
-  })
-
-  it('should wait the end of the asynchronous context before closing pending scopes', done => {
+  it('should automatically close pending scopes when the context exits', () => {
     const span = {}
 
-    let scope
+    asyncHooks.init(1)
+    asyncHooks.before(1)
 
-    setTimeout(() => {
-      scope = scopeManager.activate(span)
+    const scope = scopeManager.activate(span)
 
-      sinon.spy(scope, 'close')
+    sinon.spy(scope, 'close')
 
-      setTimeout(() => {
-        require('fs').writeSync(1, 'beforeExpect\n')
-        expect(scope.close).to.not.have.been.called
-        done()
-      })
-    })
+    asyncHooks.after(1)
+
+    expect(scope.close).to.have.been.called
   })
 
-  it('should propagate parent context to children', done => {
+  // // it('should support reentering contexts', () => {
+
+  // // })
+
+  // it('should prevent memory leaks in recursive timers', done => {
+  //   const outerContext = scopeManager._active
+  //   const outerChildCount = outerContext.children.size
+
+  //   let innerContext
+  //   let scope1
+  //   let scope2
+  //   let scope3
+
+  //   function assert () {
+  //     // fs.writeSync(1, `scope1: ${scope1._context.id}\n`)
+  //     // fs.writeSync(1, `scope2: ${scope2._context.id}\n`)
+  //     // fs.writeSync(1, `scope3: ${scope3._context.id}\n`)
+  //     // fs.writeSync(1, `innerContext: ${innerContext.id}\n`)
+  //     // fs.writeSync(1, `innerContext.parent: ${innerContext.parent.id}\n`)
+  //     // fs.writeSync(1, `outlier: ${Array.from(outerContext.children.values())[2].id}\n`)
+  //     // fs.writeSync(1, `outlier.parent: ${Array.from(outerContext.children.values())[2].parent.id}\n`)
+
+  //     // expect(outerContext.children.size).to.equal(outerChildCount + 1)
+  //     // expect(outerContext.children.get(scope3._context.id)).to.equal(scope3._context)
+  //     // expect(scope1._context.parent).to.be.null
+  //     fs.writeSync(1, `scope1 ${scope1._context.count}\n`)
+  //     expect(scope1._context.children.size).to.equal(0)
+  //     // expect(scope2._context.parent).to.be.null
+  //     expect(scope2._context.children.size).to.equal(0)
+  //     // expect(scope3._context.parent).to.equal(outerContext)
+  //     expect(scope3._context.children.size).to.equal(1)
+  //     // expect(scope3._context.children.values().next().value).to.equal(innerContext)
+  //     // expect(innerContext.parent).to.equal(scope3._context)
+
+  //     done()
+  //   }
+
+  //   setTimeout(() => {
+  //     scope1 = scopeManager.activate({})
+
+  //     setTimeout(() => {
+  //       scope2 = scopeManager.activate({})
+
+  //       setTimeout(() => {
+  //         fs.writeSync(1, `scope1: ${scope1._context.parent}\n`)
+  //         fs.writeSync(1, `scope1: ${scope1._context.count}\n`)
+  //         scope1.close()
+  //         fs.writeSync(1, `scope1: ${scope1._context.parent}\n`)
+
+  //         scope3 = scopeManager.activate({})
+
+  //         setTimeout(() => {
+  //           scope2.close()
+
+  //           setTimeout(() => {
+  //             innerContext = scopeManager._active
+
+  //             assert()
+
+  //             scope3.close()
+  //           })
+  //         })
+  //       })
+  //     })
+  //   })
+  // })
+
+  it('should wait the end of the asynchronous context before closing pending scopes', () => {
+    const span = {}
+
+    asyncHooks.init(1)
+    asyncHooks.before(1)
+
+    const scope = scopeManager.activate(span)
+
+    sinon.spy(scope, 'close')
+
+    asyncHooks.init(2)
+    asyncHooks.after(1)
+    asyncHooks.destroy(1)
+    asyncHooks.before(2)
+
+    expect(scope.close).to.not.have.been.called
+
+    asyncHooks.after(2)
+    asyncHooks.destroy(2)
+
+    expect(scope.close).to.have.been.called
+  })
+
+  it('should propagate parent context to children', () => {
     const span = {}
     const scope = scopeManager.activate(span)
 
-    setTimeout(() => {
-      expect(scopeManager.active()).to.equal(scope)
-      done()
-    })
+    asyncHooks.init(1)
+    asyncHooks.before(1)
+
+    expect(scopeManager.active()).to.equal(scope)
   })
 
-  it('should propagate parent context to ancestors', done => {
-    const span1 = {}
-    const span2 = {}
-    const scope1 = scopeManager.activate(span1)
+  it('should propagate parent context to children', () => {
+    const span = {}
+    const scope = scopeManager.activate(span)
 
-    setTimeout(() => {
-      require('fs').writeSync(1, `${scopeManager.active()}\n`)
+    asyncHooks.init(1)
+    asyncHooks.before(1)
 
-      const scope2 = scopeManager.activate(span2)
-
-      setTimeout(() => {
-        expect(scopeManager.active()).to.equal(scope1)
-        done()
-      })
-
-      scope2.close()
-      require('fs').writeSync(1, `${scopeManager.active()}\n`)
-    })
+    expect(scopeManager.active()).to.equal(scope)
   })
 
-  it('should isolate asynchronous contexts in regular timers', done => {
+  it('should isolate asynchronous contexts', () => {
     const span1 = {}
     const span2 = {}
 
     const scope1 = scopeManager.activate(span1)
 
-    setTimeout(() => {
-      scopeManager.activate(span2)
-    })
+    asyncHooks.init(1)
+    asyncHooks.init(2)
+    asyncHooks.before(1)
 
-    setTimeout(() => {
-      expect(scopeManager.active()).to.equal(scope1)
-      scope1.close()
-      done()
-    })
+    scopeManager.activate(span2)
+
+    asyncHooks.after(1)
+    asyncHooks.before(2)
+
+    expect(scopeManager.active()).to.equal(scope1)
   })
 
-  it('should isolate asynchronous contexts in repeating timers', done => {
+  it('should isolate reentering asynchronous contexts', () => {
     const span1 = {}
     const span2 = {}
 
     const scope1 = scopeManager.activate(span1)
 
-    let i = 0
+    asyncHooks.init(1)
+    asyncHooks.before(1)
 
-    const timer = setInterval(() => {
-      if (i === 0) {
-        scopeManager.activate(span2)
-        i++
-      } else {
-        clearInterval(timer)
-        expect(scopeManager.active()).to.equal(scope1)
-        done()
-      }
-    }, 0)
+    scopeManager.activate(span2)
+
+    asyncHooks.after(1)
+    asyncHooks.before(1)
+
+    expect(scopeManager.active()).to.equal(scope1)
+
+    asyncHooks.after(1)
   })
+
+  it('should properly relink children of an exited context', () => {
+    const scope1 = scopeManager.activate({})
+
+    asyncHooks.init(1)
+    asyncHooks.before(1)
+
+    const scope2 = scopeManager.activate({})
+
+    asyncHooks.init(2)
+    asyncHooks.after(1)
+    asyncHooks.before(2)
+
+    scopeManager.activate({})
+    scope2.close()
+
+    asyncHooks.after(2)
+    asyncHooks.before(2)
+
+    expect(scopeManager.active()).to.equal(scope1)
+  })
+
+//   it('should prevent memory leaks', (done) => {
+//     const memwatch = require('memwatch-next')
+//     const hd = new memwatch.HeapDiff()
+
+//     const scope1 = scopeManager.activate({})
+
+//     asyncHooks.init(1)
+//     asyncHooks.before(1)
+
+//     const scope2 = scopeManager.activate({})
+
+//     asyncHooks.init(2)
+//     asyncHooks.after(1)
+//     asyncHooks.destroy(1)
+//     asyncHooks.before(2)
+
+//     const scope3 = scopeManager.activate({})
+
+//     scope2.close()
+
+//     asyncHooks.after(2)
+//     asyncHooks.before(2)
+//     asyncHooks.after(2)
+//     asyncHooks.destroy(2)
+
+//     scope1.close()
+//     scope3.close()
+
+//     setTimeout(() => {
+//       const diff = hd.end()
+//       const contextDiff = diff.change.details.find(detail => detail.what === 'Context')
+
+//       expect(contextDiff).to.be.undefined
+
+//       done()
+//     })
+//   }).timeout(30000)
 })

@@ -16,7 +16,7 @@ class Scope {
       this._span.finish()
     }
 
-    this._context.exit(this)
+    this._context.remove(this)
   }
 }
 

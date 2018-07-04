@@ -8,26 +8,31 @@ class Context {
     this.parent = null
     this.children = new Set()
     this.active = null
-    this.count = 0
+    this.count = 1
     this.destroyed = false
     this.set = []
   }
 
   retain () {
-    require('fs').writeSync(1, `retain: ${this._id} (${this.count})\n`)
+    // require('fs').writeSync(1, `retain: ${this._id} (${this.count})\n`)
     this.count++
   }
 
   release () {
-    require('fs').writeSync(1, `release: ${this._id} (${this.count})\n`)
+    // require('fs').writeSync(1, `release: ${this._id} (${this.count})\n`)
     this.count--
 
-    if (this.count === 0) {
-      this.unlink()
-    }
+    // if (this.count === 0) {
+    this.destroy()
+    // }
   }
 
-  exit (scope) {
+  add (scope) {
+    this.set.push(scope)
+    this.active = scope
+  }
+
+  remove (scope) {
     const index = this.set.lastIndexOf(scope)
 
     this.set.splice(index, 1)
@@ -38,8 +43,12 @@ class Context {
     }
   }
 
+  exit () {
+    this.exited = true
+    this.release()
+  }
+
   close () {
-    require('fs').writeSync(1, `close: ${this._id} (${this.count})\n`)
     if (this.count === 0) {
       for (let i = this.set.length - 1; i >= 0; i--) {
         this.set[i].close()
@@ -48,26 +57,30 @@ class Context {
   }
 
   destroy () {
-    this.destroyed = true
-
     if (this.set.length === 0) {
       this.bypass()
-    } else {
+    } else if (this.count === 0) {
       this.close()
     }
   }
 
   link (parent) {
-    this.parent = parent
-    this.parent.attach(this)
+    if (parent) {
+      this.parent = parent
+      this.parent.attach(this)
+    }
   }
 
   unlink () {
     if (this.parent) {
-      this.parent.children.delete(this)
-      this.parent.release()
+      this.parent.detach(this)
       this.parent = null
     }
+  }
+
+  relink (parent) {
+    this.unlink()
+    this.link(parent)
   }
 
   attach (child) {
@@ -76,18 +89,14 @@ class Context {
   }
 
   detach (child) {
-    if (this.parent) {
-      child.parent = this.parent
-      this.parent.children.add(child)
-      this.parent.retain()
-      this.children.delete(child)
-      this.release()
-    }
+    this.children.delete(child)
+    this.release()
   }
 
   bypass () {
-    if (this.destroyed) {
-      this.children.forEach(child => this.detach(child))
+    if (this.exited) {
+      this.children.forEach(child => child.relink(this.parent))
+      this.unlink()
     }
   }
 }
