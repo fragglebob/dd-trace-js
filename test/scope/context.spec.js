@@ -3,74 +3,49 @@
 describe('Context', () => {
   let Context
   let context
-  let scopes
   let parent
   let ancestor
-  let children
 
   beforeEach(() => {
     Context = require('../../src/scope/context')
 
+    parent = { attach: sinon.stub(), detach: sinon.stub() }
+    ancestor = { attach: sinon.stub(), detach: sinon.stub() }
     context = new Context()
-    parent = new Context()
-    ancestor = new Context()
-    children = [1, 2, 3].map(() => new Context())
-
-    scopes = [1, 2, 3].map(() => ({ close: sinon.stub() }))
   })
 
-  it('should close pending scopes on exit with no children', () => {
-    context.add(scopes[0])
-    context.add(scopes[1])
-
-    context.exit()
-
-    expect(scopes[0].close).to.have.been.called
-    expect(scopes[1].close).to.have.been.called
-  })
-
-  it('should bypass an empty exited context', () => {
+  it('should switch parent when linked', () => {
     context.link(parent)
 
-    children[0].link(context)
-    children[1].link(context)
-
-    sinon.spy(parent, 'release')
-    sinon.spy(parent, 'attach')
-
-    context.exit()
-
-    children[0].release()
-    children[1].release()
-
-    expect(parent.attach).to.have.been.calledWith(children[0])
-    expect(parent.attach).to.have.been.calledWith(children[1])
-    expect(parent.release).to.have.been.called
+    expect(context.parent()).to.equal(parent)
   })
 
-  it('should link non-empty children to its when exited and empty', () => {
+  it('should attach to the parent when linked', () => {
     context.link(parent)
 
-    children[0].link(context)
-    children[0].add(scopes[0])
-
-    sinon.spy(parent, 'attach')
-
-    context.exit()
-
-    expect(parent.attach).to.have.been.calledWith(children[0])
+    expect(parent.attach).to.have.been.calledWith(context)
   })
 
-  it('should prevent memory leaks in ', () => {
+  it('should remove its parent when unlinked', () => {
     context.link(parent)
+    context.unlink()
 
-    children[0].link(context)
-    children[0].add(scopes[0])
+    expect(context.parent()).to.be.null
+  })
 
-    sinon.spy(parent, 'attach')
+  it('should detach from the parent when unlinked', () => {
+    context.link(parent)
+    context.unlink()
 
-    context.exit()
+    expect(parent.detach).to.have.been.calledWith(context)
+  })
 
-    expect(parent.attach).to.have.been.calledWith(children[0])
+  it('should reattach to the new parent when relinked', () => {
+    context.link(parent)
+    context.relink(ancestor)
+
+    expect(parent.detach).to.have.been.calledWith(context)
+    expect(ancestor.attach).to.have.been.calledWith(context)
+    expect(context.parent()).to.equal(ancestor)
   })
 })

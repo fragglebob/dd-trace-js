@@ -1,9 +1,9 @@
 'use strict'
 
 class Scope {
-  constructor (span, context, finishSpanOnClose) {
+  constructor (span, execution, finishSpanOnClose) {
     this._span = span
-    this._context = context
+    this._execution = execution
     this._finishSpanOnClose = !!finishSpanOnClose
   }
 
@@ -16,7 +16,7 @@ class Scope {
       this._span.finish()
     }
 
-    this._context.remove(this)
+    this._execution.remove(this)
   }
 }
 

@@ -3,16 +3,17 @@
 const asyncHooks = require('./async_hooks')
 const Scope = require('./scope')
 const Context = require('./context')
+const ContextExecution = require('./context_execution')
 
 class ScopeManager {
   constructor () {
     const id = -1
-    const context = new Context()
+    const execution = new ContextExecution()
 
-    this._active = context
+    this._active = execution
     this._stack = []
-    this._links = new Map()
-    this._contexts = new Map([[ id, context ]])
+    this._contexts = new Map()
+    this._executions = new Map([[ id, execution ]])
 
     this._hook = asyncHooks.createHook({
       init: this._init.bind(this),
@@ -26,64 +27,65 @@ class ScopeManager {
   }
 
   active () {
-    let context = this._active
+    let execution = this._active
 
-    while (context !== null) {
-      if (context.active) {
-        return context.active
+    while (execution !== null) {
+      if (execution.scope()) {
+        return execution.scope()
       }
 
-      context = context.parent
+      execution = execution.parent()
     }
 
     return null
   }
 
   activate (span, finishSpanOnClose) {
-    const context = this._active
-    const scope = new Scope(span, context, finishSpanOnClose)
+    const execution = this._active
+    const scope = new Scope(span, execution, finishSpanOnClose)
 
-    context.add(scope)
+    execution.add(scope)
 
     return scope
   }
 
   _init (asyncId) {
-    this._links.set(asyncId, this._active)
-    this._active.retain()
+    const context = new Context()
+
+    context.link(this._active)
+
+    this._contexts.set(asyncId, context)
   }
 
   _before (asyncId) {
-    const parent = this._links.get(asyncId)
+    const context = this._contexts.get(asyncId)
 
-    if (parent) {
-      const context = new Context()
-
-      context.link(parent)
+    if (context) {
+      const execution = new ContextExecution(context)
 
       this._stack.push(this._active)
-      this._contexts.set(asyncId, context)
-      this._active = context
+      this._executions.set(asyncId, execution)
+      this._active = execution
     }
   }
 
   _after (asyncId) {
-    const context = this._contexts.get(asyncId)
+    const execution = this._executions.get(asyncId)
 
-    if (context) {
-      context.exit()
+    if (execution) {
+      execution.exit()
 
       this._active = this._stack.pop()
-      this._contexts.delete(asyncId)
+      this._executions.delete(asyncId)
     }
   }
 
   _destroy (asyncId) {
-    const parent = this._links.get(asyncId)
+    const context = this._contexts.get(asyncId)
 
-    if (parent) {
-      this._links.delete(asyncId)
-      parent.release()
+    if (context) {
+      this._contexts.delete(asyncId)
+      context.unlink()
     }
   }
 
