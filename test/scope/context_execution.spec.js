@@ -12,6 +12,8 @@ describe('ContextExecution', () => {
   beforeEach(() => {
     context = {
       parent: sinon.stub(),
+      retain: sinon.stub(),
+      release: sinon.stub(),
       link: sinon.stub(),
       unlink: sinon.stub(),
       relink: sinon.stub()

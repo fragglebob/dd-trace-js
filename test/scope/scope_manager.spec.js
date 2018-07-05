@@ -239,14 +239,22 @@ describe('ScopeManager', () => {
     expect(scopeManager.active()).to.equal(scope)
   })
 
-  it('should propagate parent context to children', () => {
-    const span = {}
-    const scope = scopeManager.activate(span)
+  it('should propagate parent context to descendants', () => {
+    const scope1 = scopeManager.activate({})
 
     asyncHooks.init(1)
     asyncHooks.before(1)
 
-    expect(scopeManager.active()).to.equal(scope)
+    const scope2 = scopeManager.activate({})
+
+    asyncHooks.init(2)
+    asyncHooks.after(1)
+    asyncHooks.destroy(1)
+    asyncHooks.before(2)
+
+    scope2.close()
+
+    expect(scopeManager.active()).to.equal(scope1)
   })
 
   it('should isolate asynchronous contexts', () => {
@@ -305,6 +313,14 @@ describe('ScopeManager', () => {
     asyncHooks.before(2)
 
     expect(scopeManager.active()).to.equal(scope1)
+  })
+
+  it('should ignore unknown contexts', () => {
+    expect(() => {
+      asyncHooks.destroy(1)
+      asyncHooks.after(1)
+      asyncHooks.before(1)
+    }).not.to.throw()
   })
 
 //   it('should prevent memory leaks', (done) => {

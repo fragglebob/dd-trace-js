@@ -3,6 +3,16 @@
 class Context {
   constructor () {
     this._parent = null
+    this._count = 0
+  }
+
+  retain () {
+    this._count++
+  }
+
+  release () {
+    this._count--
+    this.destroy()
   }
 
   parent () {
@@ -22,6 +32,12 @@ class Context {
   relink (parent) {
     this.unlink()
     this.link(parent)
+  }
+
+  destroy () {
+    if (this._count === 0) {
+      this.unlink()
+    }
   }
 }
 

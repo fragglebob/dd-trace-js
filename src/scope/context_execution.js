@@ -10,6 +10,10 @@ class ContextExecution {
     this._count = 1
     this._exited = false
     this._set = []
+
+    if (context) {
+      context.retain()
+    }
   }
 
   retain () {
@@ -76,7 +80,7 @@ class ContextExecution {
   _destroy () {
     if (this._set.length === 0) {
       this._bypass()
-    } else if (this._count === 0) {
+    } else {
       this._close()
     }
   }
@@ -84,6 +88,7 @@ class ContextExecution {
   _bypass () {
     if (this._exited) {
       this._children.forEach(child => child.relink(this._context.parent()))
+      this._context.release()
     }
   }
 }

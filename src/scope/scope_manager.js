@@ -20,7 +20,7 @@ class ScopeManager {
       before: this._before.bind(this),
       after: this._after.bind(this),
       destroy: this._destroy.bind(this),
-      promiseResolve: this._promiseResolve.bind(this)
+      promiseResolve: this._destroy.bind(this)
     })
 
     this._enable()
@@ -53,6 +53,7 @@ class ScopeManager {
     const context = new Context()
 
     context.link(this._active)
+    context.retain()
 
     this._contexts.set(asyncId, context)
   }
@@ -85,12 +86,8 @@ class ScopeManager {
 
     if (context) {
       this._contexts.delete(asyncId)
-      context.unlink()
+      context.release()
     }
-  }
-
-  _promiseResolve (asyncId) {
-    this._destroy(asyncId)
   }
 
   _enable () {
